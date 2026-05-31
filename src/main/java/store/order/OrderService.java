@@ -17,10 +17,12 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final ProductClient productClient;
+    private final ExchangeClient exchangeClient;
 
-    public OrderService(OrderRepository orderRepository, ProductClient productClient) {
+    public OrderService(OrderRepository orderRepository, ProductClient productClient, ExchangeClient exchangeClient) {
         this.orderRepository = orderRepository;
         this.productClient = productClient;
+        this.exchangeClient = exchangeClient;
     }
 
     @Transactional
@@ -66,10 +68,16 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public OrderDetailsOut findById(String accountId, String id) {
+    public OrderDetailsOut findById(String accountId, String id, String currency) {
         OrderModel order = orderRepository.findByIdAndAccountId(id, accountId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
-        return toDetailsOut(order);
+
+        if (currency == null || currency.equalsIgnoreCase("USD")) {
+            return toDetailsOut(order, "USD", BigDecimal.ONE);
+        }
+
+        BigDecimal rate = fetchExchangeRate("USD", currency.toUpperCase(), accountId);
+        return toDetailsOut(order, currency.toUpperCase(), rate);
     }
 
     private ProductSnapshotOut fetchProduct(String idProduct) {
@@ -79,6 +87,17 @@ public class OrderService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Product not found: " + idProduct);
         } catch (FeignException ex) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to validate product: " + idProduct);
+        }
+    }
+
+    private BigDecimal fetchExchangeRate(String from, String to, String accountId) {
+        try {
+            ExchangeRateOut rate = exchangeClient.getRate(from, to, accountId);
+            return BigDecimal.valueOf(rate.sell());
+        } catch (FeignException.NotFound ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Currency pair not found: " + from + "/" + to);
+        } catch (FeignException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Unable to fetch exchange rate");
         }
     }
 
@@ -101,14 +120,14 @@ public class OrderService {
         );
     }
 
-    private OrderDetailsOut toDetailsOut(OrderModel model) {
+    private OrderDetailsOut toDetailsOut(OrderModel model, String currency, BigDecimal rate) {
         return new OrderDetailsOut(
             model.getId(),
             model.getCreatedAt(),
             model.getStatus(),
-            "USD",
-            model.getItems().stream().map(this::toItemOut).toList(),
-            scale(model.getTotalUsd())
+            currency,
+            model.getItems().stream().map(item -> toItemOut(item, rate)).toList(),
+            scale(model.getTotalUsd().multiply(rate))
         );
     }
 
@@ -118,6 +137,15 @@ public class OrderService {
             new ProductRefOut(item.getProductId()),
             item.getQuantity(),
             scale(item.getTotalUsd())
+        );
+    }
+
+    private OrderItemOut toItemOut(OrderItemModel item, BigDecimal rate) {
+        return new OrderItemOut(
+            item.getId(),
+            new ProductRefOut(item.getProductId()),
+            item.getQuantity(),
+            scale(item.getTotalUsd().multiply(rate))
         );
     }
 

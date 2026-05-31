@@ -47,7 +47,7 @@ public class OrderResource {
         @PathVariable String id,
         @RequestParam(required = false) String currency
     ) {
-        return ResponseEntity.ok(service.findById(accountId, id));
+        return ResponseEntity.ok(service.findById(accountId, id, currency));
     }
 
 }

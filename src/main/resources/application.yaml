@@ -25,6 +25,8 @@ spring:
 clients:
   product:
     url: ${PRODUCT_SERVICE_URL:http://product-service:8080}
+  exchange:
+    url: ${EXCHANGE_SERVICE_URL:http://exchange-service:8080}
 
 management:
   endpoints:
