@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 public record OrderSummaryOut(
     String id,
     LocalDateTime date,
+    OrderStatus status,
     BigDecimal total
 ) {
 }

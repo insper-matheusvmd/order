@@ -28,11 +28,16 @@ public class OrderService {
         OrderModel order = new OrderModel();
         order.setAccountId(accountId);
         order.setCreatedAt(LocalDateTime.now());
+        order.setStatus(OrderStatus.CREATED);
 
         BigDecimal total = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
         for (CreateOrderItemIn itemIn : in.items()) {
             ProductSnapshotOut product = fetchProduct(itemIn.idProduct().trim());
+            if (product.stock() < itemIn.quantity()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Insufficient stock for product: " + product.id());
+            }
+
             BigDecimal unitPrice = scale(product.price());
             BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(itemIn.quantity()))
                 .setScale(2, RoundingMode.HALF_UP);
@@ -81,6 +86,7 @@ public class OrderService {
         return new OrderCreatedOut(
             model.getId(),
             model.getCreatedAt(),
+            model.getStatus(),
             model.getItems().stream().map(this::toItemOut).toList(),
             scale(model.getTotalUsd())
         );
@@ -90,6 +96,7 @@ public class OrderService {
         return new OrderSummaryOut(
             model.getId(),
             model.getCreatedAt(),
+            model.getStatus(),
             scale(model.getTotalUsd())
         );
     }
@@ -98,6 +105,7 @@ public class OrderService {
         return new OrderDetailsOut(
             model.getId(),
             model.getCreatedAt(),
+            model.getStatus(),
             "USD",
             model.getItems().stream().map(this::toItemOut).toList(),
             scale(model.getTotalUsd())

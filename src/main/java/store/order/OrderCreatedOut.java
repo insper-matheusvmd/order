@@ -7,6 +7,7 @@ import java.util.List;
 public record OrderCreatedOut(
     String id,
     LocalDateTime date,
+    OrderStatus status,
     List<OrderItemOut> items,
     BigDecimal total
 ) {

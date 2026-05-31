@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: order-service
-          image: matheusvmd/order-service:latest
+          image: iquenavarro/order-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
